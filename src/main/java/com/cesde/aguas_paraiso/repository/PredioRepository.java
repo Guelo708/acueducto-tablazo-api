@@ -17,4 +17,6 @@ public interface PredioRepository extends JpaRepository<Predio, Long> {
     List<Predio> findBySectorId(Long sectorId);
 
     List<Predio> findByTipoPredioId(Long tipoPredioId);
+
+    List<Predio> findByUbicacionNombrePredioContainingIgnoreCase(String nombrePredio);
 }
