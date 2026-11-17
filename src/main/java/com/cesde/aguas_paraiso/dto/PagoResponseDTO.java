@@ -7,7 +7,8 @@ import com.cesde.aguas_paraiso.model.enums.MetodoPago;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Información de un pago registrado")
-public record PagoResponseDTO(@Schema(description = "Identificador único del pago", example = "1") Long id,
+public record PagoResponseDTO(
+        @Schema(description = "Identificador único del pago", example = "1") Long id,
         @Schema(description = "Identificador de la factura pagada", example = "1") Long facturaId,
         @Schema(description = "Código del predio asociado a la factura", example = "AP-0001") String codigoPredio,
         @Schema(description = "Número de cédula del propietario de la factura", example = "1037654321") String cedulaPropietario,
@@ -19,8 +20,20 @@ public record PagoResponseDTO(@Schema(description = "Identificador único del pa
         @Schema(description = "Fecha en que se realizó el pago", example = "2026-10-16") LocalDate fechaPago,
         @Schema(description = "Método utilizado para realizar el pago", example = "NEQUI") MetodoPago metodoPago,
         @Schema(description = "Observación relacionada con el pago", example = "Primer abono a la factura residencial") String observacion,
-        @Schema(description = "Estado de la factura después del registro del pago", example = "PARCIAL", allowableValues = {
-                "PENDIENTE", "PARCIAL", "PAGADA", "VENCIDA" }) String estadoFactura,
+        @Schema(description = "Estado de la factura después del registro del pago", example = "PARCIAL") String estadoFactura,
         @Schema(description = "Fecha y hora en que se creó el registro del pago", example = "2026-10-16T09:30:00") LocalDateTime fechaCreacion,
-        @Schema(description = "Fecha y hora de la última actualización del pago", example = "2026-10-16T09:30:00") LocalDateTime fechaActualizacion) {
+        @Schema(description = "Fecha y hora de la última actualización del pago", example = "2026-10-16T09:30:00") LocalDateTime fechaActualizacion,
+        @Schema(description = "Código criptográfico HMAC-SHA256 del recibo", example = "9F4A-18D2-C703-B41E") String codigoVerificacion
+) {
+    public PagoResponseDTO(
+            Long id, Long facturaId, String codigoPredio, String cedulaPropietario,
+            String nombrePropietario, Integer mesFactura, Integer anioFactura,
+            BigDecimal valorFactura, BigDecimal valorPagado, LocalDate fechaPago,
+            MetodoPago metodoPago, String observacion, String estadoFactura,
+            LocalDateTime fechaCreacion, LocalDateTime fechaActualizacion
+    ) {
+        this(id, facturaId, codigoPredio, cedulaPropietario, nombrePropietario,
+                mesFactura, anioFactura, valorFactura, valorPagado, fechaPago,
+                metodoPago, observacion, estadoFactura, fechaCreacion, fechaActualizacion, null);
+    }
 }

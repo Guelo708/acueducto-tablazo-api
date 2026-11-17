@@ -18,22 +18,22 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Servicio encargado de gestionar la lógica de negocio
- * relacionada con los pagos de Aguas Paraíso.
+ * Servicio encargado de gestionar la lÃ³gica de negocio
+ * relacionada con los pagos de Aguas ParaÃ­so.
  *
  * PagoRequestDTO recibe:
  *
  * - El ID de la factura.
  * - El valor pagado.
  * - La fecha del pago.
- * - El método de pago.
- * - Una observación opcional.
+ * - El mÃ©todo de pago.
+ * - Una observaciÃ³n opcional.
  *
- * PagoResponseDTO devuelve información del pago y un resumen
+ * PagoResponseDTO devuelve informaciÃ³n del pago y un resumen
  * de la factura relacionada, sin exponer directamente las
  * entidades JPA Pago y Factura.
  *
- * Este servicio también recalcula automáticamente el estado
+ * Este servicio tambiÃ©n recalcula automÃ¡ticamente el estado
  * de la factura cuando se registra o elimina un pago.
  */
 @Service
@@ -51,20 +51,19 @@ public class PagoService {
      * la factura asociada con cada pago.
      */
     private final FacturaRepository facturaRepository;
+    private final ReciboFirmaService reciboFirmaService;
 
     /**
      * Constructor utilizado por Spring para inyectar
-     * automáticamente los repositorios requeridos.
+     * automÃ¡ticamente los repositorios requeridos.
      *
      * @param pagoRepository repositorio de pagos
      * @param facturaRepository repositorio de facturas
      */
-    public PagoService(
-            PagoRepository pagoRepository,
-            FacturaRepository facturaRepository
-    ) {
+    public PagoService(PagoRepository pagoRepository, FacturaRepository facturaRepository, ReciboFirmaService reciboFirmaService) {
         this.pagoRepository = pagoRepository;
         this.facturaRepository = facturaRepository;
+        this.reciboFirmaService = reciboFirmaService;
     }
 
     /**
@@ -85,7 +84,7 @@ public class PagoService {
      * Busca un pago mediante su identificador interno.
      *
      * @param id identificador del pago
-     * @return Optional con el DTO o vacío si no existe
+     * @return Optional con el DTO o vacÃ­o si no existe
      */
     public Optional<PagoResponseDTO> buscarPorId(Long id) {
         return pagoRepository.findById(id)
@@ -94,7 +93,7 @@ public class PagoService {
 
     /**
      * Consulta los pagos asociados a una factura,
-     * ordenados desde el más reciente.
+     * ordenados desde el mÃ¡s reciente.
      *
      * @param facturaId identificador de la factura
      * @return lista de pagos convertidos a DTO
@@ -131,9 +130,9 @@ public class PagoService {
     }
 
     /**
-     * Consulta los pagos asociados a una cédula.
+     * Consulta los pagos asociados a una cÃ©dula.
      *
-     * @param cedula cédula histórica almacenada en la factura
+     * @param cedula cÃ©dula histÃ³rica almacenada en la factura
      * @return lista de pagos convertidos a DTO
      */
     public List<PagoResponseDTO> buscarPorCedula(
@@ -150,9 +149,9 @@ public class PagoService {
     }
 
     /**
-     * Consulta pagos de una cédula dentro de un rango de fechas.
+     * Consulta pagos de una cÃ©dula dentro de un rango de fechas.
      *
-     * @param cedula cédula del propietario
+     * @param cedula cÃ©dula del propietario
      * @param fechaInicial fecha inicial inclusiva
      * @param fechaFinal fecha final inclusiva
      * @return pagos encontrados convertidos a DTO
@@ -176,7 +175,7 @@ public class PagoService {
     }
 
     /**
-     * Calcula la suma de todos los pagos asociados a una cédula.
+     * Calcula la suma de todos los pagos asociados a una cÃ©dula.
      */
     public BigDecimal calcularTotalPagadoPorCedula(
             String cedula
@@ -205,7 +204,7 @@ public class PagoService {
      * Calcula el saldo pendiente de una factura.
      *
      * Si por cualquier circunstancia la resta produce un valor
-     * negativo, el método devuelve cero.
+     * negativo, el mÃ©todo devuelve cero.
      */
     public BigDecimal calcularSaldoPendiente(
             Long facturaId
@@ -248,9 +247,9 @@ public class PagoService {
      * 2. La factura no puede estar completamente pagada.
      * 3. El valor pagado debe ser mayor que cero.
      * 4. La fecha del pago es obligatoria y no puede ser futura.
-     * 5. El método de pago es obligatorio.
+     * 5. El mÃ©todo de pago es obligatorio.
      * 6. El pago no puede superar el saldo pendiente.
-     * 7. Después del pago se actualiza el estado de la factura.
+     * 7. DespuÃ©s del pago se actualiza el estado de la factura.
      *
      * @param dto datos necesarios para registrar el pago
      * @return pago registrado como PagoResponseDTO
@@ -312,11 +311,11 @@ public class PagoService {
     /**
      * Elimina un pago y recalcula el estado de la factura.
      *
-     * Después de eliminar se utiliza flush() para forzar que
-     * la eliminación llegue a la base de datos antes de volver
+     * DespuÃ©s de eliminar se utiliza flush() para forzar que
+     * la eliminaciÃ³n llegue a la base de datos antes de volver
      * a calcular el total pagado restante.
      *
-     * @param id identificador del pago que se eliminará
+     * @param id identificador del pago que se eliminarÃ¡
      */
     @Transactional
     public void eliminar(Long id) {
@@ -345,12 +344,12 @@ public class PagoService {
     }
 
     /**
-     * Actualiza el estado de una factura según el total pagado.
+     * Actualiza el estado de una factura segÃºn el total pagado.
      *
      * - PAGADA: total pagado igual o superior al valor facturado.
-     * - PARCIAL: existe un abono, pero aún queda saldo.
-     * - VENCIDA: no hay pagos y la fecha límite ya pasó.
-     * - PENDIENTE: no hay pagos y todavía no ha vencido.
+     * - PARCIAL: existe un abono, pero aÃºn queda saldo.
+     * - VENCIDA: no hay pagos y la fecha lÃ­mite ya pasÃ³.
+     * - PENDIENTE: no hay pagos y todavÃ­a no ha vencido.
      */
     private void actualizarEstadoFactura(
             Factura factura,
@@ -408,7 +407,8 @@ public class PagoService {
                         ? factura.getEstado().name()
                         : null,
                 pago.getFechaCreacion(),
-                pago.getFechaActualizacion()
+                pago.getFechaActualizacion(),
+                reciboFirmaService.generarCodigoVerificacion(pago)
         );
     }
 
@@ -445,7 +445,7 @@ public class PagoService {
 
     /**
      * Valida la existencia de una factura para las consultas
-     * que únicamente necesitan comprobar su ID.
+     * que Ãºnicamente necesitan comprobar su ID.
      */
     private void validarExistenciaFactura(Long facturaId) {
         buscarFactura(facturaId);
@@ -490,21 +490,21 @@ public class PagoService {
 
         if (dto.metodoPago() == null) {
             throw new IllegalArgumentException(
-                    "El método de pago es obligatorio"
+                    "El mÃ©todo de pago es obligatorio"
             );
         }
     }
 
     /**
      * Convierte un total nulo en cero para evitar errores
-     * cuando todavía no existen pagos asociados.
+     * cuando todavÃ­a no existen pagos asociados.
      */
     private BigDecimal normalizarTotal(BigDecimal total) {
         return total != null ? total : BigDecimal.ZERO;
     }
 
     /**
-     * Convierte una observación vacía en null y elimina
+     * Convierte una observaciÃ³n vacÃ­a en null y elimina
      * espacios innecesarios en los extremos.
      */
     private String normalizarObservacion(String observacion) {
@@ -518,7 +518,7 @@ public class PagoService {
     private void validarCedula(String cedula) {
         if (cedula == null || cedula.isBlank()) {
             throw new IllegalArgumentException(
-                    "La cédula es obligatoria"
+                    "La cÃ©dula es obligatoria"
             );
         }
     }
