@@ -37,3 +37,4 @@ build/
 
 # Registros de errores de la JVM
 hs_err_pid*.log
+application-local.properties
