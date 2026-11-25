@@ -76,4 +76,15 @@ findByCedulaPropietarioAndEstadoAndFechaGeneracionBetweenOrderByFechaGeneracionD
         LocalDate fechaInicial,
         LocalDate fechaFinal
 );
+
+    List<Factura> findByCedulaPropietarioAndEstadoNotOrderByAnioAscMesAscIdAsc(
+            String cedulaPropietario,
+            EstadoFactura estado
+    );
+
+    List<Factura> findByCedulaPropietarioAndPredioCodigoPredioIgnoreCaseAndEstadoNotOrderByAnioAscMesAscIdAsc(
+            String cedulaPropietario,
+            String codigoPredio,
+            EstadoFactura estado
+    );
 }

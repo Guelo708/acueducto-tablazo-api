@@ -1,5 +1,7 @@
 package com.cesde.aguas_paraiso.service;
 
+import com.cesde.aguas_paraiso.dto.PagoConsolidadoRequestDTO;
+import com.cesde.aguas_paraiso.dto.PagoConsolidadoResponseDTO;
 import com.cesde.aguas_paraiso.dto.PagoRequestDTO;
 import com.cesde.aguas_paraiso.dto.PagoResponseDTO;
 import com.cesde.aguas_paraiso.model.entity.Factura;
@@ -14,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -536,6 +539,171 @@ public class PagoService {
         if (fechaFinal.isBefore(fechaInicial)) {
             throw new IllegalArgumentException(
                     "La fecha final no puede ser anterior a la fecha inicial"
+            );
+        }
+    }
+
+    /**
+     * Registra una consignación consolidada y la distribuye automáticamente
+     * entre las facturas pendientes del suscriptor en orden FIFO
+     * (de la más antigua a la más reciente).
+     */
+    @Transactional
+    public PagoConsolidadoResponseDTO registrarConsolidado(
+            PagoConsolidadoRequestDTO dto
+    ) {
+        validarDatosPagoConsolidado(dto);
+
+        String cedulaLimpia = dto.cedula().trim();
+        boolean filtraPorPredio = dto.codigoPredio() != null && !dto.codigoPredio().isBlank();
+
+        List<Factura> facturasPendientes = filtraPorPredio
+                ? facturaRepository.findByCedulaPropietarioAndPredioCodigoPredioIgnoreCaseAndEstadoNotOrderByAnioAscMesAscIdAsc(
+                        cedulaLimpia,
+                        dto.codigoPredio().trim(),
+                        EstadoFactura.PAGADA
+                )
+                : facturaRepository.findByCedulaPropietarioAndEstadoNotOrderByAnioAscMesAscIdAsc(
+                        cedulaLimpia,
+                        EstadoFactura.PAGADA
+                );
+
+        if (facturasPendientes.isEmpty()) {
+            throw new IllegalArgumentException(
+                    filtraPorPredio
+                            ? "No existen facturas pendientes para la cédula " + cedulaLimpia + " en el predio " + dto.codigoPredio().trim()
+                            : "El suscriptor con cédula " + cedulaLimpia + " no tiene facturas pendientes de pago"
+            );
+        }
+
+        BigDecimal deudaTotalAnterior = BigDecimal.ZERO;
+        List<BigDecimal> saldosIniciales = new ArrayList<>(facturasPendientes.size());
+
+        for (Factura factura : facturasPendientes) {
+            BigDecimal pagadoPrevio = normalizarTotal(
+                    pagoRepository.sumarPagosPorFactura(factura.getId())
+            );
+            BigDecimal saldo = factura.getValorFactura().subtract(pagadoPrevio);
+            if (saldo.compareTo(BigDecimal.ZERO) < 0) {
+                saldo = BigDecimal.ZERO;
+            }
+            saldosIniciales.add(saldo);
+            deudaTotalAnterior = deudaTotalAnterior.add(saldo);
+        }
+
+        if (deudaTotalAnterior.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException(
+                    "Las facturas consultadas no presentan saldo pendiente"
+            );
+        }
+
+        if (dto.valorTotalPagado().compareTo(deudaTotalAnterior) > 0) {
+            throw new IllegalArgumentException(
+                    "El valor consignado (" + dto.valorTotalPagado().stripTrailingZeros().toPlainString()
+                            + ") supera la deuda total pendiente ("
+                            + deudaTotalAnterior.stripTrailingZeros().toPlainString() + ")"
+            );
+        }
+
+        BigDecimal remanente = dto.valorTotalPagado();
+        List<PagoResponseDTO> pagosGenerados = new ArrayList<>();
+        int facturasSaldadas = 0;
+        int facturasAbonadasParcial = 0;
+
+        String obsBase = normalizarObservacion(dto.observacion());
+        String etiquetaConsignacion = "Pago consolidado ($"
+                + dto.valorTotalPagado().stripTrailingZeros().toPlainString()
+                + ")";
+        String observacionAplicada = obsBase != null
+                ? etiquetaConsignacion + " · " + obsBase
+                : etiquetaConsignacion;
+
+        for (int i = 0; i < facturasPendientes.size(); i++) {
+            if (remanente.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
+
+            Factura factura = facturasPendientes.get(i);
+            BigDecimal saldoFactura = saldosIniciales.get(i);
+
+            if (saldoFactura.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+
+            BigDecimal montoAAplicar = remanente.min(saldoFactura);
+            BigDecimal pagadoAnterior = factura.getValorFactura().subtract(saldoFactura);
+
+            Pago pago = Pago.builder()
+                    .factura(factura)
+                    .valorPagado(montoAAplicar)
+                    .fechaPago(dto.fechaPago())
+                    .metodoPago(dto.metodoPago())
+                    .observacion(observacionAplicada)
+                    .build();
+
+            Pago pagoGuardado = pagoRepository.save(pago);
+
+            BigDecimal nuevoTotalPagado = pagadoAnterior.add(montoAAplicar);
+            actualizarEstadoFactura(factura, nuevoTotalPagado);
+
+            if (factura.getEstado() == EstadoFactura.PAGADA) {
+                facturasSaldadas++;
+            } else if (factura.getEstado() == EstadoFactura.PARCIAL) {
+                facturasAbonadasParcial++;
+            }
+
+            pagosGenerados.add(convertirADTO(pagoGuardado));
+            remanente = remanente.subtract(montoAAplicar);
+        }
+
+        BigDecimal deudaTotalRestante = deudaTotalAnterior.subtract(dto.valorTotalPagado());
+        int facturasPendientesRestantes = facturasPendientes.size() - facturasSaldadas;
+        String nombrePropietario = facturasPendientes.get(0).getNombrePropietario();
+
+        return new PagoConsolidadoResponseDTO(
+                cedulaLimpia,
+                nombrePropietario,
+                dto.valorTotalPagado(),
+                deudaTotalAnterior,
+                deudaTotalRestante,
+                facturasSaldadas,
+                facturasAbonadasParcial,
+                facturasPendientesRestantes,
+                pagosGenerados
+        );
+    }
+
+    private void validarDatosPagoConsolidado(PagoConsolidadoRequestDTO dto) {
+        if (dto == null) {
+            throw new IllegalArgumentException(
+                    "Los datos del pago consolidado son obligatorios"
+            );
+        }
+
+        validarCedula(dto.cedula());
+
+        if (dto.valorTotalPagado() == null
+                || dto.valorTotalPagado().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException(
+                    "El valor total consignado debe ser mayor que cero"
+            );
+        }
+
+        if (dto.fechaPago() == null) {
+            throw new IllegalArgumentException(
+                    "La fecha del pago es obligatoria"
+            );
+        }
+
+        if (dto.fechaPago().isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException(
+                    "La fecha del pago no puede ser futura"
+            );
+        }
+
+        if (dto.metodoPago() == null) {
+            throw new IllegalArgumentException(
+                    "El método de pago es obligatorio"
             );
         }
     }

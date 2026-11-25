@@ -1,5 +1,7 @@
 package com.cesde.aguas_paraiso.controller;
 
+import com.cesde.aguas_paraiso.dto.PagoConsolidadoRequestDTO;
+import com.cesde.aguas_paraiso.dto.PagoConsolidadoResponseDTO;
 import com.cesde.aguas_paraiso.dto.PagoRequestDTO;
 import com.cesde.aguas_paraiso.dto.PagoResponseDTO;
 import com.cesde.aguas_paraiso.service.PagoService;
@@ -368,5 +370,28 @@ public class PagoController {
         return ResponseEntity
                 .noContent()
                 .build();
+    }
+
+    /**
+     * Registra una consignación consolidada y la aplica en orden FIFO
+     * desde la factura más antigua hasta la más reciente.
+     *
+     * Ruta:
+     * POST /api/pagos/consolidado
+     */
+    @PostMapping("/consolidado")
+    @Operation(
+            summary = "Registrar pago consolidado (FIFO)",
+            description = "Distribuye un monto consignado entre las facturas pendientes de una cédula ordenadas desde la más antigua hasta la más reciente"
+    )
+    public ResponseEntity<PagoConsolidadoResponseDTO> registrarConsolidado(
+            @RequestBody PagoConsolidadoRequestDTO dto
+    ) {
+        PagoConsolidadoResponseDTO resultado =
+                pagoService.registrarConsolidado(dto);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(resultado);
     }
 }
